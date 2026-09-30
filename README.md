@@ -1,5 +1,4 @@
 # Secure-QR-code-Authentication-system
-# 🛡️ Zero-Trust QR Authentication Gateway (AuthQR)
 
 An enterprise-grade cybersecurity gateway and threat detonation engine designed to mitigate QR code-based attacks (Quishing, unauthorized URL redirection, replay attacks, and payload tampering). 
 
