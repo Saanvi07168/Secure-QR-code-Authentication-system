@@ -1,0 +1,130 @@
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+public class RansomwareDetector {
+
+    private static final double ENTROPY_THRESHOLD = 7.2; // Range: 0.0 (uniform) to 8.0 (random/encrypted)
+    private static final long TIME_WINDOW_MS = 2000;      // 2-second detection window
+    private static final int MAX_EVENTS_THRESHOLD = 5;    // Max suspicious edits allowed in window
+
+    private final Path monitorDir;
+    private final ConcurrentLinkedQueue<Long> suspiciousEvents = new ConcurrentLinkedQueue<>();
+
+    public RansomwareDetector(Path monitorDir) {
+        this.monitorDir = monitorDir;
+    }
+
+    /**
+     * Calculates Shannon Entropy of a file (0.0 to 8.0).
+     */
+    public static double calculateEntropy(File file) {
+        if (!file.exists() || file.isDirectory() || file.length() == 0) {
+            return 0.0;
+        }
+
+        int[] frequency = new int[256];
+        long totalBytes = 0;
+
+        // Read first 64 KB chunk for fast evaluation
+        byte[] buffer = new byte[65536];
+        try (FileInputStream fis = new FileInputStream(file)) {
+            int bytesRead = fis.read(buffer);
+            if (bytesRead <= 0) return 0.0;
+
+            for (int i = 0; i < bytesRead; i++) {
+                frequency[buffer[i] & 0xFF]++;
+                totalBytes++;
+            }
+        } catch (IOException e) {
+            return 0.0;
+        }
+
+        double entropy = 0.0;
+        for (int count : frequency) {
+            if (count > 0) {
+                double probability = (double) count / totalBytes;
+                entropy -= probability * (Math.log(probability) / Math.log(2));
+            }
+        }
+        return entropy;
+    }
+
+    public void startMonitoring() throws IOException, InterruptedException {
+        WatchService watchService = FileSystems.getDefault().newWatchService();
+        monitorDir.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.ENTRY_CREATE);
+
+        System.out.printf("[*] Java Ransomware Detector running on: %s%n", monitorDir.toAbsolutePath());
+
+        while (true) {
+            WatchKey key = watchService.take();
+            long currentTime = System.currentTimeMillis();
+
+            for (WatchEvent<?> event : key.pollEvents()) {
+                WatchEvent.Kind<?> kind = event.kind();
+                if (kind == StandardWatchEventKinds.OVERFLOW) continue;
+
+                @SuppressWarnings("unchecked")
+                WatchEvent<Path> ev = (WatchEvent<Path>) event;
+                Path modifiedPath = monitorDir.resolve(ev.context());
+                File file = modifiedPath.toFile();
+
+                double entropy = calculateEntropy(file);
+                if (entropy >= ENTROPY_THRESHOLD) {
+                    System.out.printf("[WARN] High Entropy Detected (%.2f) on file: %s%n", entropy, modifiedPath.getFileName());
+                    suspiciousEvents.add(currentTime);
+                    
+                    // Remove events outside the rolling time window
+                    suspiciousEvents.removeIf(timestamp -> (currentTime - timestamp) > TIME_WINDOW_MS);
+
+                    if (suspiciousEvents.size() >= MAX_EVENTS_THRESHOLD) {
+                        triggerAlertAndQuarantine(modifiedPath);
+                        return; // Stop watching after lockdown
+                    }
+                }
+            }
+
+            if (!key.reset()) {
+                break;
+            }
+        }
+    }
+
+    private void triggerAlertAndQuarantine(Path triggerFile) {
+        System.out.println("\n[!] CRITICAL ALERT: Rapid high-entropy file modifications detected!");
+        System.out.printf("[!] Triggered near file: %s%n", triggerFile.toAbsolutePath());
+        quarantineProcesses();
+    }
+
+    /**
+     * Inspects active processes and suspends/destroys non-system processes.
+     */
+    private void quarantineProcesses() {
+        System.out.println("[+] Initiating system quarantine protocol...");
+        long currentPid = ProcessHandle.current().pid();
+
+        ProcessHandle.allProcesses().forEach(ph -> {
+            try {
+                long pid = ph.pid();
+                if (pid == currentPid || pid <= 4) return; // Skip current and kernel/system init processes
+
+                ProcessHandle.Info info = ph.info();
+                Optional<String> command = info.command();
+
+                if (command.isPresent()) {
+                    String cmd = command.get().toLowerCase();
+                    // Basic filter to avoid stopping essential OS runtimes
+                    if (!cmd.contains("java") && !cmd.contains("explorer") && !cmd.contains("system32")) {
+                        System.out.printf("[+] Destroying suspicious process [PID: %d | Cmd: %s]%n", pid, cmd);
+                        ph.destroy(); // Sends SIGTERM (or forces process kill)
+                    }
+                }
+            } catch (Exception ignored) {
+                // Ignore permissions or access errors for restricted system processes
+            }
+        });
+    }
+}

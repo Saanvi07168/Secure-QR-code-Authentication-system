@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AegisQR — Zero-Trust QR & URL Security Gateway</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            cyber: {
+              950: '#06090e',
+              900: '#0b111a',
+              850: '#0f1724',
+              800: '#141e2e',
+              700: '#1e2c42',
+              accent: '#38bdf8',
+              emerald: '#10b981',
+              rose: '#f43f5e',
+              amber: '#f59e0b',
+            }
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'scanline': 'scan 2.5s linear infinite',
+          },
+          keyframes: {
+            scan: {
+              '0%': { transform: 'translateY(-100%)' },
+              '100%': { transform: 'translateY(1000%)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .glass-panel {
+      background: rgba(15, 23, 36, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-panel-hover:hover {
+      border-color: rgba(56, 189, 248, 0.35);
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.1);
+    }
+    .radar-grid {
+      background-size: 32px 32px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+    .scan-laser {
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0) 0%, rgba(56, 189, 248, 0.6) 80%, #38bdf8 100%);
+    }
+  </style>
+</head>
+<body class="bg-cyber-950 text-slate-200 font-sans min-h-screen selection:bg-cyber-accent selection:text-cyber-950 radar-grid flex flex-col justify-between">
+
+  <!-- Top App Navigation -->
+  <header class="border-b border-white/5 bg-cyber-900/60 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="h-9 w-9 rounded-lg bg-cyber-accent/10 border border-cyber-accent/30 flex items-center justify-center text-cyber-accent">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+          </svg>
+        </div>
+        <div>
+          <span class="font-bold tracking-tight text-white flex items-center gap-2">
+            AEGIS<span class="text-cyber-accent font-mono font-normal">QR</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest bg-white/5 text-slate-400 border border-white/10 uppercase">Gateway v2.0</span>
+          </span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-2 text-xs font-mono text-slate-400 bg-cyber-850 px-3 py-1.5 rounded-full border border-white/5">
+          <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>ENGINE: REALTIME DETONATION</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="max-w-4xl mx-auto px-4 py-10 w-full">
+    
+    <!-- Hero / Intro -->
+    <div class="text-center mb-8">
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+        Zero-Trust QR <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyber-accent to-blue-400">Cryptographic Firewall</span>
+      </h1>
+      <p class="text-slate-400 text-sm max-w-xl mx-auto mt-2">
+        Validates Ed25519 digital signatures, performs sandboxed recursive redirect tracing, and detects homoglyph or IDN spoofing attacks in real time.
+      </p>
+    </div>
+
+    <!-- Scanner / Ingestion Zone -->
+    <div 
+      id="dropzone" 
+      class="glass-panel glass-panel-hover relative overflow-hidden rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 border-dashed border-2 border-slate-700/80 group">
+      
+      <!-- Scanline beam animation -->
+      <div id="scanLaser" class="hidden absolute left-0 right-0 h-10 scan-laser opacity-40 animate-scanline pointer-events-none"></div>
+
+      <input type="file" id="fileInput" class="hidden" accept="image/*">
+
+      <div class="flex flex-col items-center justify-center space-y-4">
+        <div class="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-slate-300 border border-white/10 group-hover:scale-105 group-hover:text-cyber-accent group-hover:border-cyber-accent/40 transition-all duration-300">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-base font-semibold text-white">Drag & Drop QR Image, browse, or paste screenshot</p>
+          <p class="text-xs text-slate-400 mt-1">Press <kbd class="px-2 py-0.5 rounded bg-cyber-800 border border-slate-700 font-mono text-[11px] text-slate-300">Ctrl + V</kbd> anywhere to decode directly from clipboard buffer</p>
+        </div>
+        <div class="flex items-center gap-2 pt-2">
+          <span class="text-[11px] font-mono px-2.5 py-1 rounded bg-cyber-900 border border-white/5 text-slate-400">PNG</span>
+          <span class="text-[11px] font-mono px-2.5 py-1 rounded bg-cyber-900 border border-white/5 text-slate-400">JPG</span>
+          <span class="text-[11px] font-mono px-2.5 py-1 rounded bg-cyber-900 border border-white/5 text-slate-400">WEBP</span>
+          <span class="text-[11px] font-mono px-2.5 py-1 rounded bg-cyber-900 border border-white/5 text-slate-400">Pasted Pixels</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active In-Flight Loader -->
+    <div id="loader" class="hidden my-8 glass-panel rounded-xl p-6 text-center border-cyber-accent/30 animate-pulse-slow">
+      <div class="inline-flex items-center justify-center space-x-3">
+        <div class="w-4 h-4 rounded-full border-2 border-cyber-accent border-t-transparent animate-spin"></div>
+        <span class="font-mono text-xs tracking-wider text-cyber-accent uppercase font-bold">Detonating & Tracing Redirect Hops...</span>
+      </div>
+      <p class="text-slate-400 text-xs mt-2">Computing Ed25519 signature validity & checking IDN punycode tables...</p>
+    </div>
+
+    <!-- Error Alert Banner -->
+    <div id="errorAlert" class="hidden my-6 p-4 rounded-xl bg-cyber-rose/10 border border-cyber-rose/30 text-rose-300 text-sm flex items-center space-x-3">
+      <svg class="w-5 h-5 flex-shrink-0 text-cyber-rose" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span id="errorMessage" class="font-mono text-xs"></span>
+    </div>
+
+    <!-- Security Verdict Panel -->
+   <!-- Result Presentation Container -->
+    <div id="resultCard" class="hidden space-y-6 max-w-6xl mx-auto w-full">
+
+      <!-- Status Banner -->
+      <div id="statusBanner" class="glass-panel rounded-2xl p-6 border flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <div id="verdictIconContainer" class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0">
+            <!-- Icon rendered via JS -->
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <h2 id="statusTitle" class="text-xl font-bold font-mono"></h2>
+              <span id="badge" class="px-2.5 py-0.5 text-[11px] font-mono font-bold rounded uppercase"></span>
+            </div>
+            <p id="statusSubtitle" class="text-xs text-slate-400 mt-1 font-mono"></p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <button id="copyBtn" class="px-3 py-2 rounded-lg text-xs font-mono bg-slate-800 text-slate-200 hover:bg-slate-700 transition">
+            Copy URL
+          </button>
+          <a id="proceedBtn" href="#" target="_blank" rel="noopener noreferrer" class="px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition flex items-center space-x-1.5 shadow-lg">
+            <span>Visit Link</span>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Main Dashboard Grid (1 Col on mobile, 3 Cols on desktop) -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+        <!-- Column 1: Cryptographic Identity (1/3 Width) -->
+        <div class="glass-panel rounded-2xl p-5 border border-white/5 space-y-6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-xs font-mono tracking-wider uppercase text-slate-400">Cryptographic Identity</span>
+              <span id="cryptoLedgerIcon" class="h-2 w-2 rounded-full bg-slate-500"></span>
+            </div>
+
+            <div class="space-y-4 font-mono text-xs">
+              <div>
+                <span class="text-[11px] text-slate-400 block">Registered Issuer</span>
+                <span id="issuerDisplay" class="font-bold text-slate-200">None (Unregistered)</span>
+              </div>
+
+              <div>
+                <span class="text-[11px] text-slate-400 block">Primitive</span>
+                <span class="text-slate-200">Ed25519 (256-bit elliptic)</span>
+              </div>
+
+              <div>
+                <span class="text-[11px] text-slate-400 block">Envelope Integrity</span>
+                <span id="envelopeStatusText" class="font-bold text-slate-400">NONE (PLAIN PAYLOAD)</span>
+              </div>
+
+              <div>
+                <span class="text-[11px] text-slate-400 block">Anti-Tampering Status</span>
+                <span class="text-slate-300">Payload Integrity Audited</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- SHA-256 Cryptographic Fingerprint Row -->
+          <div class="pt-4 border-t border-slate-800/80 flex flex-col gap-2 font-mono">
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="text-slate-400 flex items-center gap-1.5 tracking-wider">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                PAYLOAD SHA-256
+              </span>
+              <span id="blacklist-status-badge" class="hidden px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-semibold"></span>
+            </div>
+            <div id="payload-sha256" class="p-2.5 rounded bg-slate-950/80 border border-slate-800 text-[11px] text-cyan-300 break-all select-all font-mono leading-relaxed">
+              --
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 2: Authentication Engine & Path Detonation (2/3 Width) -->
+        <div class="lg:col-span-2 space-y-6 flex flex-col">
+
+          <!-- Zero-Trust Authentication Engine -->
+          <div class="glass-panel rounded-2xl p-5 border border-white/10 bg-slate-900/60">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <span class="text-xs font-mono tracking-wider uppercase text-cyan-400">Zero-Trust Authentication Engine</span>
+                <h3 id="authVerdictText" class="text-lg font-bold text-slate-100 font-mono mt-0.5">STANDBY</h3>
+              </div>
+              <div id="authVerdictBadge" class="px-3 py-1 rounded text-xs font-mono font-bold tracking-wider uppercase">
+                --
+              </div>
+            </div>
+
+            <div id="authStepsContainer" class="mt-4 space-y-2 font-mono text-xs">
+              <!-- Check steps injected dynamically via JS -->
+            </div>
+          </div>
+
+          <!-- Detonation & Path Analysis -->
+          <div class="glass-panel rounded-2xl p-5 border border-white/5 space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono tracking-wider uppercase text-slate-400">Detonation & Path Analysis</span>
+              <span id="riskBadge" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded"></span>
+            </div>
+
+            <div class="space-y-3">
+              <div>
+                <span class="text-[11px] font-mono text-slate-400 block mb-1">Initial Target</span>
+                <p id="origUrl" class="font-mono text-xs text-slate-300 bg-slate-950/70 p-2 rounded border border-white/5 break-all"></p>
+              </div>
+
+              <div>
+                <span class="text-[11px] font-mono text-slate-400 block mb-1">Resolved Destination</span>
+                <p id="destUrl" class="font-mono text-xs font-bold text-cyan-400 bg-slate-950/70 p-2 rounded border border-white/5 break-all"></p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-4 pt-1 font-mono text-xs">
+                <div>
+                  <span class="text-[11px] text-slate-400 block">Redirect Chain</span>
+                  <span id="hopCount" class="font-bold text-slate-200"></span>
+                </div>
+                <div>
+                  <span class="text-[11px] text-slate-400 block">Homoglyph / Punycode</span>
+                  <span id="homoglyphState" class="font-bold"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Warning Notes -->
+            <div id="notesContainer" class="hidden pt-3 border-t border-slate-800">
+              <ul id="notesList" class="space-y-1 text-xs font-mono text-amber-300"></ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+           <!-- Diagnostic Warning Flags -->
+          <div id="notesContainer" class="hidden mt-4 pt-3 border-t border-white/5">
+            <ul id="notesList" class="space-y-1.5 font-mono text-[11px] text-cyber-amber"></ul>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Modern Footer -->
+  <footer class="border-t border-white/5 py-6 text-center text-xs font-mono text-slate-400">
+    AegisQR Framework • Real-time Threat Pre-flight Engine
+  </footer>
+
+  <script>
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const loader = document.getElementById('loader');
+    const scanLaser = document.getElementById('scanLaser');
+    const errorAlert = document.getElementById('errorAlert');
+    const errorMessage = document.getElementById('errorMessage');
+    const resultCard = document.getElementById('resultCard');
+
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    // Drag-and-drop feedback
+    ['dragenter', 'dragover'].forEach(e => {
+      dropzone.addEventListener(e, (evt) => {
+        evt.preventDefault();
+        dropzone.classList.add('border-cyber-accent', 'bg-cyber-accent/5');
+      });
+    });
+    ['dragleave', 'drop'].forEach(e => {
+      dropzone.addEventListener(e, (evt) => {
+        evt.preventDefault();
+        dropzone.classList.remove('border-cyber-accent', 'bg-cyber-accent/5');
+      });
+    });
+    dropzone.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) handleFile(fileInput.files[0]);
+    });
+
+    // Global Paste Listener (Ctrl+V)
+    window.addEventListener('paste', (e) => {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (const item of items) {
+        if (item.type.indexOf('image') !== -1) {
+          const blob = item.getAsFile();
+          handleFile(blob);
+          return;
+        }
+      }
+    });
+
+    async function handleFile(file) {
+      errorAlert.classList.add('hidden');
+      resultCard.classList.add('hidden');
+      loader.classList.remove('hidden');
+      scanLaser.classList.remove('hidden');
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/scan/file', { method: 'POST', body: formData });
+        const data = await res.json();
+        
+        loader.classList.add('hidden');
+        scanLaser.classList.add('hidden');
+
+        if (!res.ok) {
+          showError(data.detail || 'Failed to analyze QR code.');
+          return;
+        }
+        renderResult(data);
+      } catch (err) {
+        loader.classList.add('hidden');
+        scanLaser.classList.add('hidden');
+        showError('Gateway connection error. Ensure the FastAPI backend is running.');
+      }
+    }
+
+    function showError(msg) {
+      errorMessage.innerText = msg;
+      errorAlert.classList.remove('hidden');
+    }
+
+   function renderResult(data) {
+      resultCard.classList.remove('hidden');
+      
+      const banner = document.getElementById('statusBanner');
+      const iconContainer = document.getElementById('verdictIconContainer');
+      const title = document.getElementById('statusTitle');
+      const sub = document.getElementById('statusSubtitle');
+      const badge = document.getElementById('badge');
+      const proceedBtn = document.getElementById('proceedBtn');
+      const cryptoDot = document.getElementById('cryptoLedgerIcon');
+      const envelopeText = document.getElementById('envelopeStatusText');
+
+      // 1. Cryptographic status resolution
+      if (data.signature_status === 'VALID' || data.authentication_verdict === 'AUTHENTIC') {
+        banner.className = 'glass-panel rounded-2xl p-6 border border-cyber-emerald/40 bg-cyber-emerald/5';
+        iconContainer.className = 'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-cyber-emerald/20 text-cyber-emerald border border-cyber-emerald/30';
+        iconContainer.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>';
+        title.innerText = 'Cryptographically Verified';
+        sub.innerText = 'This QR payload has an authenticated Ed25519 signature from a verified corporate authority.';
+        badge.className = 'px-2.5 py-0.5 text-[11px] font-mono font-bold rounded uppercase bg-cyber-emerald/20 text-cyber-emerald border border-cyber-emerald/40';
+        badge.innerText = 'AUTH VALID';
+        proceedBtn.className = 'px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition flex items-center space-x-1.5 shadow-lg bg-cyber-emerald text-cyber-950 hover:bg-emerald-400';
+        cryptoDot.className = 'h-2 w-2 rounded-full bg-cyber-emerald';
+        envelopeText.className = 'text-cyber-emerald font-bold';
+        envelopeText.innerText = 'AUTHENTIC & UNTOUCHED';
+      } else if (data.signature_status === 'TAMPERED' || data.authentication_verdict === 'REJECTED_TAMPERED') {
+        banner.className = 'glass-panel rounded-2xl p-6 border border-cyber-rose/50 bg-cyber-rose/10';
+        iconContainer.className = 'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-cyber-rose/20 text-cyber-rose border border-cyber-rose/30';
+        iconContainer.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>';
+        title.innerText = 'Signature Tamper Detected';
+        sub.innerText = 'CRITICAL ALERT: The original payload URL was swapped or forged after being signed.';
+        badge.className = 'px-2.5 py-0.5 text-[11px] font-mono font-bold rounded uppercase bg-cyber-rose/20 text-cyber-rose border border-cyber-rose/40';
+        badge.innerText = 'TAMPERED';
+        proceedBtn.className = 'px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition flex items-center space-x-1.5 shadow-lg bg-cyber-rose text-white hover:bg-rose-600';
+        cryptoDot.className = 'h-2 w-2 rounded-full bg-cyber-rose animate-ping';
+        envelopeText.className = 'text-cyber-rose font-bold';
+        envelopeText.innerText = 'SIGNATURE MISMATCH (FORGERY)';
+      } else {
+        banner.className = 'glass-panel rounded-2xl p-6 border border-slate-700 bg-cyber-900/60';
+        iconContainer.className = 'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-800 text-slate-300 border border-slate-700';
+        iconContainer.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>';
+        title.innerText = 'Standard Unsigned QR';
+        sub.innerText = 'No cryptographic signature header found in this QR matrix. Destination evaluated by heuristics.';
+        badge.className = 'px-2.5 py-0.5 text-[11px] font-mono font-bold rounded uppercase bg-slate-800 text-slate-300 border border-slate-600';
+        badge.innerText = 'UNSIGNED';
+        proceedBtn.className = 'px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition flex items-center space-x-1.5 shadow-lg bg-blue-600 text-white hover:bg-blue-500';
+        cryptoDot.className = 'h-2 w-2 rounded-full bg-slate-500';
+        envelopeText.className = 'text-slate-400 font-bold';
+        envelopeText.innerText = 'NONE (PLAIN PAYLOAD)';
+      }
+      
+      // 2. SHA-256 Fingerprint & Threat Intel Resolution
+      const hashEl = document.getElementById("payload-sha256");
+      if (hashEl && data.payload_sha256) {
+        hashEl.textContent = data.payload_sha256;
+      }
+
+      const badgeEl = document.getElementById("blacklist-status-badge");
+      if (badgeEl) {
+        if (data.is_blacklisted) {
+          badgeEl.className = "px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-red-500/20 text-red-400 border border-red-500/40 inline-block";
+          badgeEl.textContent = "THREAT DB MATCH: MALICIOUS";
+          badgeEl.classList.remove("hidden");
+        } else {
+          badgeEl.className = "px-2 py-0.5 rounded text-[10px] uppercase font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 inline-block";
+          badgeEl.textContent = "FINGERPRINT CLEAN";
+          badgeEl.classList.remove("hidden");
+        }
+      }
+
+      const issuerEl = document.getElementById('issuerDisplay');
+      if (issuerEl) {
+        issuerEl.innerText = data.issuer || 'None (Unregistered)';
+      }
+
+      // 3. Zero-Trust Authentication Engine Steps & Verdict
+      const stepsContainer = document.getElementById("authStepsContainer");
+      const verdictBadge = document.getElementById("authVerdictBadge");
+      const verdictText = document.getElementById("authVerdictText");
+
+      if (stepsContainer && data.checks) {
+        stepsContainer.innerHTML = "";
+        data.checks.forEach(step => {
+          const row = document.createElement("div");
+          row.className = "flex items-center justify-between p-2 rounded bg-slate-950/60 border border-slate-800/80";
+          
+          const icon = step.status 
+            ? '<span class="text-emerald-400 font-bold">✓ PASS</span>' 
+            : '<span class="text-rose-400 font-bold">✗ FAIL</span>';
+            
+          row.innerHTML = `
+            <div class="flex flex-col">
+              <span class="text-slate-200 font-semibold">${step.name}</span>
+              <span class="text-[10px] text-slate-400">${step.detail}</span>
+            </div>
+            <div>${icon}</div>
+          `;
+          stepsContainer.appendChild(row);
+        });
+      }
+
+      if (verdictBadge && verdictText) {
+        if (data.authentication_verdict === 'AUTHENTIC') {
+          verdictBadge.className = "px-3 py-1 rounded text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+          verdictBadge.innerText = "ACCESS GRANTED: AUTHENTIC";
+          verdictText.innerText = `Identity Confirmed: ${data.user_id} (${data.action})`;
+          verdictText.className = "text-lg font-bold text-emerald-400 font-mono";
+        } else if (data.authentication_verdict === 'REJECTED_TAMPERED') {
+          verdictBadge.className = "px-3 py-1 rounded text-xs font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40";
+          verdictBadge.innerText = "ACCESS DENIED: TAMPER DETECTED";
+          verdictText.innerText = "Cryptographic Forgery Detected";
+          verdictText.className = "text-lg font-bold text-rose-400 font-mono";
+        } else if (data.authentication_verdict === 'REJECTED_EXPIRED') {
+          verdictBadge.className = "px-3 py-1 rounded text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40";
+          verdictBadge.innerText = "ACCESS DENIED: TOKEN EXPIRED";
+          verdictText.innerText = "Ephemeral TTL Expired";
+          verdictText.className = "text-lg font-bold text-amber-400 font-mono";
+        } else if (data.authentication_verdict === 'REJECTED_REPLAY') {
+          verdictBadge.className = "px-3 py-1 rounded text-xs font-mono font-bold bg-orange-500/20 text-orange-300 border border-orange-500/40";
+          verdictBadge.innerText = "ACCESS DENIED: REPLAY DETECTED";
+          verdictText.innerText = "Replay Attack: Nonce Already Consumed";
+          verdictText.className = "text-lg font-bold text-orange-400 font-mono";
+        } else {
+          verdictBadge.className = "px-3 py-1 rounded text-xs font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700";
+          verdictBadge.innerText = "UNAUTHENTICATED (STANDARD QR)";
+          verdictText.innerText = "Plaintext QR (No Auth Envelope)";
+          verdictText.className = "text-lg font-bold text-slate-300 font-mono";
+        }
+      }
+
+      // 4. Destination URL Diagnostics
+      if (data.url_analysis) {
+        document.getElementById('origUrl').innerText = data.url_analysis.original_url;
+        document.getElementById('destUrl').innerText = data.url_analysis.final_destination;
+        document.getElementById('hopCount').innerText = `${data.url_analysis.redirect_count} Hops Traversed`;
+        
+        const risk = document.getElementById('riskBadge');
+        risk.innerText = `RISK: ${data.url_analysis.risk_level}`;
+        if (data.url_analysis.risk_level === 'HIGH') {
+          risk.className = 'px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-cyber-rose/20 text-cyber-rose border border-cyber-rose/30';
+        } else if (data.url_analysis.risk_level === 'MEDIUM') {
+          risk.className = 'px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-cyber-amber/20 text-cyber-amber border border-cyber-amber/30';
+        } else {
+          risk.className = 'px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-cyber-emerald/20 text-cyber-emerald border border-cyber-emerald/30';
+        }
+
+        const homo = document.getElementById('homoglyphState');
+        homo.innerText = data.url_analysis.is_homoglyph ? 'DETECTED (PUNYCODE)' : 'CLEAN (ASCII)';
+        homo.className = data.url_analysis.is_homoglyph ? 'text-cyber-rose font-bold' : 'text-cyber-emerald font-bold';
+
+        proceedBtn.href = data.url_analysis.final_destination;
+        document.getElementById('copyBtn').onclick = () => {
+          navigator.clipboard.writeText(data.url_analysis.final_destination);
+          document.getElementById('copyBtn').innerText = 'Copied!';
+          setTimeout(() => document.getElementById('copyBtn').innerText = 'Copy URL', 2000);
+        };
+
+        // Render Warning Notes
+        const notesContainer = document.getElementById('notesContainer');
+        const notesList = document.getElementById('notesList');
+        notesList.innerHTML = '';
+        if (data.url_analysis.notes.length > 0) {
+          data.url_analysis.notes.forEach(note => {
+            const li = document.createElement('li');
+            li.className = 'flex items-center space-x-2';
+            li.innerHTML = `<span class="h-1.5 w-1.5 rounded-full bg-cyber-amber"></span><span>${note}</span>`;
+            notesList.appendChild(li);
+          });
+          notesContainer.classList.remove('hidden');
+        } else {
+          notesContainer.classList.add('hidden');
+        }
+      }
+    }
+  </script>
+</body>
+</html>
